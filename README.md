@@ -4,6 +4,7 @@ ofxSonyRemoteCamera
 Sony Camera Remote API for openFrameworks (c++)
 
 Sony's Wi-Fi camera can be controlled by C++ program.
+
 e.g. start/stop recording, capture live view
 
 Device
