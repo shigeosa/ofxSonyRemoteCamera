@@ -29,4 +29,5 @@ Platform
 Link
 ----------
 - [SonyCameraRemoteAPI](http://camera.developer.sony.com/ "Sony Camera Remote API")
+- [SonyCameraRemoteAPI documents](https://camera.developer.sony.com/pages/documents/view/?id=camera_api "Sony Camera Remote API")
 - [openFrameworks](http://www.openframeworks.cc/ "openFrameworks")
