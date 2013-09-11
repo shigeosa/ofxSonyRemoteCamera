@@ -1,0 +1,19 @@
+<install>
+	<name>ofxSonyRemoteCamera</name>
+	<version>0.01</version>
+	<author>osamu shigeta</author>
+	<url></url>
+	<add>
+		<!-- 	=====================================================================	-->
+		<!--	========================== add per project using this addon =========	-->
+		<!-- 	=====================================================================	-->
+		<src>
+			<folder name="addons/ofxSonyRemoteCamera/src">
+				<file>../../../addons/ofxSonyRemoteCamera/src/ofxSonyRemoteCamera.h</file>
+				<file>../../../addons/ofxSonyRemoteCamera/src/ofxSonyRemoteCamera.cpp</file>
+				<file>../../../addons/ofxSonyRemoteCamera/src/picojson.h</file>
+			</folder>
+		</src>
+	</add>
+	
+</install>
