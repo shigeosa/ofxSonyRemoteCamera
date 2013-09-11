@@ -9,7 +9,7 @@ e.g. start/stop recording, capture live view
 
 Device
 ----------
-- [SonyCameraRemoteAPI](http://camera.developer.sony.com/ "Sony Camera Remote API")
+- [HDR-AS15 ActionCam](http://camera.developer.sony.com/ "HDR-AS15 ActionCam")
 - NEX cameras will be supported by Sony soon.
 
 How To Use
@@ -17,6 +17,8 @@ How To Use
 - update your camera's firmware
 - connect your PC to Wi-Fi Camera
 - build&run sample program
+
+Note that: some apis can not be used for now, becaue camera does not support apis.
 
 Platform
 ----------
