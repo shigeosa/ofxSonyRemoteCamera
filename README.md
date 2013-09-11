@@ -15,7 +15,7 @@ Device
 How To Use
 ----------
 - update your camera's firmware
-- connect your PC to Wi-Fi Camera
+- connect your PC to your Camera with Wi-Fi
 - build&run sample program
 
 Note that: some apis can not be used for now, becaue camera does not support apis.
