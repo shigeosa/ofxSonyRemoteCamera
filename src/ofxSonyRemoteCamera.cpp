@@ -14,7 +14,7 @@ static const int COMMON_HEADER_SIZE(1+1+2+4);
 static const int PAYLOAD_HEADER_SIZE(4+3+1+4+1+115);
 static const BYTE COMMON_HEADER_START_BYTE(0xff);
 static const BYTE PAYLOAD_HEADER_START_BYTES[] = {0x24, 0x35, 0x68, 0x79};
-static const unsigned long long SESSION_TIMEOUT(5000*1000);	//!< ms
+//static const unsigned long long SESSION_TIMEOUT(5000*1000);	//!< ms
 
 ofxSonyRemoteCamera::ofxSonyRemoteCamera()	
 {
@@ -37,10 +37,11 @@ bool ofxSonyRemoteCamera::setup( const std::string& host/*="10.0.0.1"*/, int por
 	mpLiveViewStream = 0;
 	mIsImageSizeUpdated = false;
 
+	mSession.reset();
 	mSession.setHost(mHost);
 	mSession.setPort(port);
-	mSession.reset();
-	mSession.setTimeout(SESSION_TIMEOUT);
+	mSession.setKeepAlive(true);
+
 	mSessionCameraPath = "/" + ACTION_LIST_URL + "/" + SERVICE_TYPE_CAMERA;
 	mSessionGuidePath =  "/" + ACTION_LIST_URL + "/" + SERVICE_TYPE_GUIDE;
 	mSessionAccessControlPath =  "/" + ACTION_LIST_URL + "/" + SERVICE_TYPE_ACCESS_CONTROL;
@@ -55,6 +56,14 @@ void ofxSonyRemoteCamera::exit()
 
 void ofxSonyRemoteCamera::update()
 {
+	if (mIsImageSizeUpdated) {
+		if (lock()) {
+			ofNotifyEvent(imageSizeUpdated, mImageSize);
+			mIsImageSizeUpdated = false;
+			unlock();
+		}
+	}
+	/*
 	if (lock()) {
 		if (mIsImageSizeUpdated) {
 			ofNotifyEvent(imageSizeUpdated, mImageSize);
@@ -62,6 +71,7 @@ void ofxSonyRemoteCamera::update()
 		}
 		unlock();
 	}
+	*/
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -73,18 +83,13 @@ ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::startLiveView()
 	mIsLiveViewStreaming = false;
 	closeLiveViewSession();
 
-	picojson::object obj(createJsonObj("startLiveview"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string json( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(json, mSessionCameraPath));
-
-	SRCError err(checkError(ret));
+	const std::string json(httpPost(createJson("startLiveview"), mSessionCameraPath));
+	SRCError err(checkError(json));
 	if (err != SRC_OK) return err;
 
 	Poco::URI uri;
 	picojson::array resultArray;
-	if (getJsonResultArray(resultArray, ret)) {
+	if (getJsonResultArray(resultArray, json)) {
 		uri = resultArray[0].get<std::string>();
 	}
 	mLiveViewPath = uri.getPathAndQuery();
@@ -102,12 +107,8 @@ ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::stopLiveView()
 	mIsLiveViewStreaming = false;
 	closeLiveViewSession();
 
-	picojson::object obj(createJsonObj("stopLiveview"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string json( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(json, mSessionCameraPath));
-	return checkError(ret);
+	const std::string json(httpPost(createJson("stopLiveview"), mSessionCameraPath));
+	return checkError(json);
 }
 
 bool ofxSonyRemoteCamera::isLiveViewFrameNew()
@@ -177,64 +178,101 @@ void ofxSonyRemoteCamera::getPayloadHeader(PayloadHeader& header)
 		unlock();
 	}
 }
-
 //////////////////////////////////////////////////////////////////////////
-// CameraAPIs
+// Still Capture
+//////////////////////////////////////////////////////////////////////////
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::actTakePicture()
+{
+	const std::string json(httpPost(createJson("actTakePicture"), mSessionCameraPath));
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::awaitTakePicture()
+{
+	const std::string json(httpPost(createJson("awaitTakePicture"), mSessionCameraPath));
+	return checkError(json);	
+}
+//////////////////////////////////////////////////////////////////////////
+// Movie recording
 //////////////////////////////////////////////////////////////////////////
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::startMovieRec()
 {
-	picojson::object obj(createJsonObj("startMovieRec"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
+	const std::string json(httpPost(createJson("startMovieRec"), mSessionCameraPath));
+	return checkError(json);
 }
 
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::stopMovieRec()
 {
-	picojson::object obj(createJsonObj("stopMovieRec"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
+	const std::string json(httpPost(createJson("stopMovieRec"), mSessionCameraPath));
+	return checkError(json);	
 }
+//////////////////////////////////////////////////////////////////////////
+// Zoom
+//////////////////////////////////////////////////////////////////////////
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::actZoom(const std::string& direction, const std::string& movement)
+{
+	std::vector<picojson::value> params(2);
+	params[0] = static_cast<picojson::value>(static_cast<std::string>(direction));
+	params[1] = static_cast<picojson::value>(static_cast<std::string>(movement));
+	const std::string json(httpPost(createJson("awaitTakePicture", params), mSessionCameraPath));
+	return checkError(json);	
+}
+//////////////////////////////////////////////////////////////////////////
+// Self-timer
+//////////////////////////////////////////////////////////////////////////
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedSelfTimer( std::string& json )
+{
+	json = httpPost(createJson("getSupportedSelfTimer"), mSessionCameraPath);
+	return checkError(json);
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableSelfTimer( std::string& json )
+{
+	json = httpPost(createJson("getAvailableSelfTimer"), mSessionCameraPath);
+	return checkError(json);
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSelfTimer(int& second)
+{
+	const std::string json(httpPost(createJson("getSelfTimer"), mSessionCameraPath));
+	SRCError err(checkError(json));
+	if (err != SRC_OK) return err;
 
+	picojson::array resultArray;
+	if (getJsonResultArray(resultArray, json)) {
+		second = resultArray[0].get<double>();
+		return SRC_OK;
+	}
+	return SRC_ERROR_UNKNOWN;	
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setSelfTimer(int second)
+{
+	std::vector<picojson::value> params(1);
+	params[0] = static_cast<picojson::value>(static_cast<double>(second));
+	const std::string json(httpPost(createJson("setSelfTimer", params), mSessionCameraPath));
+	return checkError(json);	
+}
+//////////////////////////////////////////////////////////////////////////
+// Shoot mode
+//////////////////////////////////////////////////////////////////////////
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedShootMode( std::string& json )
 {
-	picojson::object obj(createJsonObj("getSupportedShootMode"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
+	json = httpPost(createJson("getSupportedShootMode"), mSessionCameraPath);
+	return checkError(json);
 }
 
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableShootMode( std::string& json )
 {
-	picojson::object obj(createJsonObj("getAvailableShootMode"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
+	json = httpPost(createJson("getAvailableShootMode"), mSessionCameraPath);
+	return checkError(json);
 }
 
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getShootMode(ShootMode& mode)
 {
-	picojson::object obj(createJsonObj("getShootMode"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	SRCError err(checkError(ret));
+	const std::string json(httpPost(createJson("getShootMode"), mSessionCameraPath));
+	SRCError err(checkError(json));
 	if (err != SRC_OK) return err;
 
 	picojson::array resultArray;
-	if (getJsonResultArray(resultArray, ret)) {
+	if (getJsonResultArray(resultArray, json)) {
 		if (resultArray[0].get<std::string>().compare("movie") == 0) {
 			mode = SHOOT_MODE_MOVIE;
 			return SRC_OK;
@@ -250,77 +288,174 @@ ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getShootMode(ShootMode& mode)
 	}
 	return SRC_ERROR_UNKNOWN;	
 }
-
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setShootMode(ShootMode mode)
 {
-	picojson::object obj(createJsonObj("setShootMode"));
-	{
-		picojson::array params;
-		switch (mode) {
+
+	std::vector<picojson::value> params(1);
+	switch (mode) {
 		case SHOOT_MODE_MOVIE:
-			params.push_back(static_cast<picojson::value>(static_cast<std::string>("movie")));
+			params[0] = static_cast<picojson::value>(static_cast<std::string>("movie"));
 			break;
 		case SHOOT_MODE_STILL:
-			params.push_back(static_cast<picojson::value>(static_cast<std::string>("still")));
+			params[0] = static_cast<picojson::value>(static_cast<std::string>("still"));
 			break;
 		case SHOOT_MODE_INTERVAL_STILL:
-			params.push_back(static_cast<picojson::value>(static_cast<std::string>("intervalstill")));
+			params[0] = static_cast<picojson::value>(static_cast<std::string>("intervalstill"));
 			break;
 		default:
 			ofLogError("not implemented yet.");
 			break;
 		}
-		obj.insert(make_pair("params", params));
-	}
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
-}
 
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableApiList( std::string& json )
-{
-	picojson::object obj(createJsonObj("getAvailableApiList"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
+	const std::string json(httpPost(createJson("setShootMode", params), mSessionCameraPath));
+	return checkError(json);
 }
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getMethodTypes( std::string& json )
-{
-	picojson::object obj(createJsonObj("getMethodTypes"));
-	picojson::array params;
-	params.push_back( (picojson::value)(std::string)("1.0"));
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getVersions( std::string& json )
-{
-	picojson::object obj(createJsonObj("getVersions"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
+//////////////////////////////////////////////////////////////////////////
+// Event notification
+//////////////////////////////////////////////////////////////////////////
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getEvent( std::string& json, bool pollingFlag )
 {
-	picojson::object obj(createJsonObj("getEvent"));
-	picojson::array params;
-	params.push_back(static_cast<picojson::value>(bool(pollingFlag)));
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
+	std::vector<picojson::value> params(1);
+	params[0] = static_cast<picojson::value>(static_cast<bool>(pollingFlag));
+	json = httpPost(createJson("getEvent", params), mSessionCameraPath);
+	return checkError(json);
+}
+//////////////////////////////////////////////////////////////////////////
+// Camera setup
+//////////////////////////////////////////////////////////////////////////
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::startRecMode()
+{
+	const std::string json(httpPost(createJson("startRecMode"), mSessionCameraPath));
+	return checkError(json);
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::stopRecMode()
+{
+	const std::string json(httpPost(createJson("stopRecMode"), mSessionCameraPath));
+	return checkError(json);
+}
+//////////////////////////////////////////////////////////////////////////
+// Server information
+//////////////////////////////////////////////////////////////////////////
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableApiList( std::string& json )
+{
+	json = httpPost(createJson("getAvailableApiList"), mSessionCameraPath);
+	return checkError(json);
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getMethodTypes( std::string& json )
+{
+	std::vector<picojson::value> params(1);
+	params[0] = static_cast<picojson::value>(static_cast<std::string>(VERSION));
+	json = httpPost(createJson("getMethodTypes", params), mSessionCameraPath);
+	return checkError(json);
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getVersions( std::string& json )
+{
+	json = httpPost(createJson("getVersions"), mSessionCameraPath);
+	return checkError(json);
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getApplicationInfo( std::string& json )
+{
+	json = httpPost(createJson("getApplicationInfo"), mSessionCameraPath);
+	return checkError(json);
+}
+//////////////////////////////////////////////////////////////////////////
+// othrers
+//////////////////////////////////////////////////////////////////////////
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::startIntervalStillRec()
+{
+	const std::string json(httpPost(createJson("startIntervalStillRec"), mSessionCameraPath));
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::stopIntervalStillRec()
+{
+	const std::string json(httpPost(createJson("stopIntervalStillRec"), mSessionCameraPath));
+	return checkError(json);
+}
+
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedViewAngle( std::string& json )
+{
+	json = httpPost(createJson("getSupportedViewAngle"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableViewAngle( std::string& json )
+{
+	json = httpPost(createJson("getAvailableViewAngle"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getViewAngle( int& angle )
+{
+	const std::string json(httpPost(createJson("getViewAngle"), mSessionCameraPath));
+	SRCError err(checkError(json));
+	if (err != SRC_OK) return err;
+
+	picojson::array resultArray;
+	if (getJsonResultArray(resultArray, json)) {
+		angle = resultArray[0].get<double>();
+		return SRC_OK;
+	}
+	return SRC_ERROR_UNKNOWN;	
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setViewAngle(int angle)
+{
+	std::vector<picojson::value> params(1);
+	params[0] = static_cast<picojson::value>(static_cast<double>(angle));
+	const std::string json(httpPost(createJson("setViewAngle", params), mSessionCameraPath));
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedMovieQuality( std::string& json )
+{
+	json = httpPost(createJson("getSupportedMovieQuality"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableMovieQuality( std::string& json )
+{
+	json = httpPost(createJson("getAvailableMovieQuality"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getMovieQuality( std::string& json )
+{
+	json = httpPost(createJson("getMovieQuality"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setMovieQuality( const std::string& quality )
+{
+	std::vector<picojson::value> params(1);
+	params[0] = static_cast<picojson::value>(static_cast<std::string>(quality));
+	const std::string json(httpPost(createJson("setMovieQuality", params), mSessionCameraPath));
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedSteadyMode( std::string& json )
+{
+	json = httpPost(createJson("getSupportedSteadyMode"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableSteadyMode( std::string& json )
+{
+	json = httpPost(createJson("getAvailableSteadyMode"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getStorageInformation( std::string& json )
+{
+	json = httpPost(createJson("getStorageInformation"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableCameraFunction( std::string& json )
+{
+	json = httpPost(createJson("getAvailableCameraFunction"), mSessionCameraPath);
+	return checkError(json);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -387,203 +522,6 @@ std::string ofxSonyRemoteCamera::getShootModeString(ShootMode mode) const
 }
 
 //////////////////////////////////////////////////////////////////////////
-// CameraAPIs
-//////////////////////////////////////////////////////////////////////////
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::startRecMode()
-{
-	picojson::object obj(createJsonObj("startRecMode"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::stopRecMode()
-{
-	picojson::object obj(createJsonObj("stopRecMode"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::startIntervalStillRec()
-{
-	picojson::object obj(createJsonObj("startIntervalStillRec"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::stopIntervalStillRec()
-{
-	picojson::object obj(createJsonObj("stopIntervalStillRec"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
-}
-
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedViewAngle( std::string& json )
-{
-	picojson::object obj(createJsonObj("getSupportedViewAngle"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableViewAngle( std::string& json )
-{
-	picojson::object obj(createJsonObj("getAvailableViewAngle"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getViewAngle( int& angle )
-{
-	picojson::object obj(createJsonObj("getViewAngle"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	SRCError err(checkError(ret));
-	if (err != SRC_OK) return err;
-
-	picojson::array resultArray;
-	if (getJsonResultArray(resultArray, ret)) {
-		angle = resultArray[0].get<double>();
-		return SRC_OK;
-	}
-	return SRC_ERROR_UNKNOWN;	
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setViewAngle(int angle)
-{
-	picojson::object obj(createJsonObj("setViewAngle"));
-	picojson::array params;
-	params.push_back( (picojson::value)(double)(angle));
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedMovieQuality( std::string& json )
-{
-	picojson::object obj(createJsonObj("getSupportedMovieQuality"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableMovieQuality( std::string& json )
-{
-	picojson::object obj(createJsonObj("getAvailableMovieQuality"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getMovieQuality( std::string& json )
-{
-	picojson::object obj(createJsonObj("getMovieQuality"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setMovieQuality( const std::string& quality )
-{
-	picojson::object obj(createJsonObj("setMovieQuality"));
-	picojson::array params;
-	params.push_back( (picojson::value)(std::string)(quality));
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedSteadyMode( std::string& json )
-{
-	picojson::object obj(createJsonObj("getSupportedSteadyMode"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableSteadyMode( std::string& json )
-{
-	picojson::object obj(createJsonObj("getAvailableSteadyMode"));
-	picojson::array params;
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getStorageInformation( std::string& json )
-{
-	picojson::object obj(createJsonObj("getStorageInformation"));
-	picojson::array params;
-	params.push_back( (picojson::value)(std::string)("1.0"));
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailableCameraFunction( std::string& json )
-{
-	picojson::object obj(createJsonObj("getAvailableCameraFunction"));
-	picojson::array params;
-	params.push_back( (picojson::value)(std::string)("1.0"));
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getApplicationInfo( std::string& json )
-{
-	picojson::object obj(createJsonObj("getApplicationInfo"));
-	picojson::array params;
-	params.push_back( (picojson::value)(std::string)("1.0"));
-	obj.insert(make_pair("params", params));
-	const std::string j( (static_cast<picojson::value>(obj)).serialize() );
-	const std::string ret(httpPost(j, mSessionCameraPath));
-	json = ret;
-	return checkError(ret);
-}
-
-//////////////////////////////////////////////////////////////////////////
 // private functions
 //////////////////////////////////////////////////////////////////////////
 void ofxSonyRemoteCamera::threadedFunction()
@@ -595,14 +533,12 @@ void ofxSonyRemoteCamera::threadedFunction()
 	}
 }
 
-
-
 bool ofxSonyRemoteCamera::openLiveViewSession( const std::string& host, int port )
 {
+	mLiveViewSession.reset();
 	mLiveViewSession.setHost(host);
 	mLiveViewSession.setPort(port);
-	mLiveViewSession.reset();
-	mLiveViewSession.setTimeout(SESSION_TIMEOUT);
+	mLiveViewSession.setKeepAlive(true);
 
 	Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_GET, mLiveViewPath, Poco::Net::HTTPMessage::HTTP_1_1);
 	Poco::Net::HTTPResponse response;
@@ -748,13 +684,18 @@ picojson::value ofxSonyRemoteCamera::parse(const std::string& json) const
 	return v;
 }
 
-picojson::object ofxSonyRemoteCamera::createJsonObj( const std::string& method ) const
+std::string ofxSonyRemoteCamera::createJson(const std::string& method, const std::vector<picojson::value>& params ) const
 {
 	picojson::object obj;
 	obj["method"] = (picojson::value)(std::string)(method);
 	obj["id"] = (picojson::value)(double)(mId);
 	obj["version"] = (picojson::value)(std::string)(VERSION);
-	return obj;
+	picojson::array paramArray;
+	for (std::vector<picojson::value>::const_iterator it=params.begin(); it!=params.end(); ++it) {
+		paramArray.push_back(*it);
+	}
+	obj.insert(make_pair("params", paramArray));
+	return (static_cast<picojson::value>(obj)).serialize();
 }
 
 bool ofxSonyRemoteCamera::getJsonResultArray(picojson::array& outArray, const std::string& json) const

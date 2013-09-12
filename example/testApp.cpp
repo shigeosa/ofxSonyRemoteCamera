@@ -1,14 +1,19 @@
 /*!
- * This source code is for HDR-AS15, but some apis can not be supported by HDR-AS15.
+ * This source code is for HDR-AS15, but some apis can not be used.
  * Please check error code and following documents will help you.
  * https://camera.developer.sony.com/pages/documents/view/?id=camera_api 
  */
 #include "testApp.h"
 
 static const int MSG_LIST_SIZE(7);
+static const unsigned long long WAIT_MSG_INTERVAL(500);
+static const unsigned long long WAIT_MAX_DURAION(5000);
 
 //--------------------------------------------------------------
 void testApp::setup(){
+
+	mMsgList.push_back("Call getAvailableApiList and check your available apis. Available apis depend on your device.");
+	mMsgList.push_back("Some apis cannot be used even if apis are listed on available api lists.");
 
 	mPrevTimestamp = 0;
 
@@ -20,14 +25,26 @@ void testApp::setup(){
 	if (err != ofxSonyRemoteCamera::SRC_OK) mMsgList.push_back(getErrorMsg(err));
 	
 	// wait untill LiveViewImage packets are received
-	int i(0);
+	bool isSuccessed(true);
+	unsigned long long lastMsgTimestamp(0);
 	while (!mRemoteCam.isLiveViewFrameNew()) {
 		mRemoteCam.update();
-		if (i%100 == 0) std::cout << "wait untill liveview images are updated" << std::endl;
+		const unsigned long long timestamp(ofGetElapsedTimeMillis());
+		if (timestamp - lastMsgTimestamp > WAIT_MSG_INTERVAL) {
+			std::cout << "wait untill liveview images are updated" << std::endl;
+			lastMsgTimestamp = timestamp;
+		} else if (timestamp > WAIT_MAX_DURAION) {
+			std::cout << "connect server error. pleae check your Wi-Fi connection" << std::endl;
+			isSuccessed = false;
+			break;
+		}
 		ofSleepMillis(1);
 	}
-	err = mRemoteCam.getShootMode(mShootMode);
-	if (err != ofxSonyRemoteCamera::SRC_OK) mMsgList.push_back(getErrorMsg(err));
+
+	if (isSuccessed) {
+		err = mRemoteCam.getShootMode(mShootMode);
+		if (err != ofxSonyRemoteCamera::SRC_OK) mMsgList.push_back(getErrorMsg(err));
+	}
 }
 
 //--------------------------------------------------------------
@@ -44,7 +61,7 @@ void testApp::update(){
 		mLiveViewImage.update();
 
 		if (timestamp != mPrevTimestamp) {
-			ofSetWindowTitle("FPS: " + ofToString(1000.f/(timestamp-mPrevTimestamp), 1));
+			ofSetWindowTitle("Cam FPS: " + ofToString(1000.f/(timestamp-mPrevTimestamp), 1));
 			mPrevTimestamp = timestamp;
 		}
 	}
@@ -75,9 +92,9 @@ void testApp::draw(){
 	ofSetColor(255);
 	ofDrawBitmapString(
 		"ESC: exit" ", 1: startLiveView" ", 2: stopLiveView" ", 3: getAvailableApiList" ", 4: getMethodTypes" ", 5: getSupportedShootMode\n"
-		"6: getAvailableShootmode" ", 7: getShootMode , 8: , 9: , 0: \n"
+		"6: getAvailableShootmode" ", 7: getShootMode , 8: getAvailableSteadyMode, 9: getApplicationInfo, 0: \n"
 		"e: getEvent" ", f: toggleFullScreen" ", i: setShootMode IntervalStill" ", m: setShootMode Movie" ", n: setShootMode Still(HDR-AS15 not supported)\n"
-		"r: startMovieRec/startIntervalStillRec(HDR-AS15 not supported)" ", s: stopMovieRec/stopIntervalStillRec(HDR-AS15 not supported)\n"
+		"r: startMovieRec/startIntervalStillRec" ", s: stopMovieRec/stopIntervalStillRec\n"
 		"v: getVersions"
 		, 0, height - 70);
 	// draw msg
@@ -124,19 +141,15 @@ void testApp::keyPressed(int key){
 		break;
 	case '7':
 		err = mRemoteCam.getShootMode(mShootMode);
-		if (err == ofxSonyRemoteCamera::SRC_OK) {
-			switch (mShootMode) {
-			case ofxSonyRemoteCamera::SHOOT_MODE_MOVIE:
-				msg += "Shoot Mode: Movie";
-				break;
-			case ofxSonyRemoteCamera::SHOOT_MODE_STILL:
-				msg += "Shoot Mode: Still";
-				break;
-			case ofxSonyRemoteCamera::SHOOT_MODE_INTERVAL_STILL:
-				msg += "Shoot Mode: Interval Still";
-				break;
-			}
-		}
+		if (err == ofxSonyRemoteCamera::SRC_OK) msg += "Shoot Mode: " + mRemoteCam.getShootModeString(mShootMode);
+		break;
+	case '8':
+		err = mRemoteCam.getAvailableSteadyMode(msg);
+		break;
+	case '9':
+		err = mRemoteCam.getApplicationInfo(msg);
+		break;
+	case '0':
 		break;
 	case 'e':
 		err = mRemoteCam.getEvent(msg, false);
@@ -172,7 +185,7 @@ void testApp::keyPressed(int key){
 			err = mRemoteCam.startMovieRec();
 			break;
 		case ofxSonyRemoteCamera::SHOOT_MODE_STILL:
-			// TODO
+			err = mRemoteCam.actTakePicture();
 			break;
 		case ofxSonyRemoteCamera::SHOOT_MODE_INTERVAL_STILL:
 			err = mRemoteCam.startIntervalStillRec();

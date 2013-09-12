@@ -92,7 +92,7 @@ public:
 	ofEvent<ImageSize> imageSizeUpdated;
 
 	//-----------------------------------------------------------------
-	// LiveViewAPIs (Available)
+	// Liveview (Available)
 	//-----------------------------------------------------------------
 	SRCError startLiveView();
 	SRCError stopLiveView();
@@ -116,36 +116,68 @@ public:
 	void getPayloadHeader(PayloadHeader& header);
 
 	//-----------------------------------------------------------------
-	// CameraAPIs (Available)
+	// Still capture
+	//-----------------------------------------------------------------
+	SRCError actTakePicture();
+	SRCError awaitTakePicture();
+
+	//-----------------------------------------------------------------
+	// Movie recording (Available)
 	//-----------------------------------------------------------------
 	SRCError startMovieRec();
 	SRCError stopMovieRec();
 
+	//-----------------------------------------------------------------
+	// Zoom
+	//-----------------------------------------------------------------
+	/*!
+		@params direction "in" or "out"
+		@params movement "start", "stop" or "1shot"
+		@return SRCError SRC_OK is ok, others are error
+	*/
+	SRCError actZoom(const std::string& direction, const std::string& movement);
+
+	//-----------------------------------------------------------------
+	// Self-timer
+	//-----------------------------------------------------------------
+	SRCError getSupportedSelfTimer(std::string& json);
+	SRCError getAvailableSelfTimer(std::string& json);
+	SRCError getSelfTimer(int& second);
+	SRCError setSelfTimer(int second);
+
+	//-----------------------------------------------------------------
+	// Shoot mode (Available)
+	//-----------------------------------------------------------------
 	SRCError getSupportedShootMode(std::string& json);
 	SRCError getAvailableShootMode(std::string& json);
 	SRCError getShootMode(ShootMode& mode);
 	SRCError setShootMode(ShootMode mode);
 
-	SRCError getAvailableApiList(std::string& json);
-	SRCError getMethodTypes(std::string& json);
-	SRCError getVersions(std::string& json);
+	//-----------------------------------------------------------------
+	// Event notification (Available)
+	//-----------------------------------------------------------------
 	/*!
 		@params pollingFlag true: Callback when timeout or change point detection, false: Callback immediately
 	*/
 	SRCError getEvent(std::string& json, bool pollingFlag);
 
 	//-----------------------------------------------------------------
-	// Helper Functions
-	//-----------------------------------------------------------------
-	std::string getErrorString(SRCError err) const;
-	std::string getShootModeString(ShootMode mode) const;
-
-	//-----------------------------------------------------------------
-	// CameraAPIs (Not Available) 
+	// Camera setup
 	//-----------------------------------------------------------------
 	SRCError startRecMode();
 	SRCError stopRecMode();
 
+	//-----------------------------------------------------------------
+	// Server information
+	//-----------------------------------------------------------------
+	SRCError getAvailableApiList(std::string& json);
+	SRCError getMethodTypes(std::string& json);
+	SRCError getVersions(std::string& json);
+	SRCError getApplicationInfo(std::string& json);
+
+	//-----------------------------------------------------------------
+	// othrer
+	//-----------------------------------------------------------------
 	SRCError startIntervalStillRec();
 	SRCError stopIntervalStillRec();
 
@@ -164,7 +196,13 @@ public:
 	
 	SRCError getAvailableCameraFunction(std::string& json);
 	SRCError getStorageInformation(std::string& json);
-	SRCError getApplicationInfo(std::string& json);
+
+	//-----------------------------------------------------------------
+	// My Helper Functions
+	//-----------------------------------------------------------------
+	std::string getErrorString(SRCError err) const;
+	std::string getShootModeString(ShootMode mode) const;
+
 private:
 	virtual void threadedFunction();
 	bool updateLiveView();
@@ -176,7 +214,7 @@ private:
 
 	std::string httpPost(const std::string& json, const std::string& path);
 	//json	
-	picojson::object createJsonObj(const std::string& method) const;
+	std::string createJson(const std::string& method, const std::vector<picojson::value>& params=std::vector<picojson::value>()) const;
 	picojson::value parse(const std::string& json)  const;
 	bool getJsonResultArray(picojson::array&  outArray, const std::string& json) const;
 	SRCError checkError(const std::string& json) const;
