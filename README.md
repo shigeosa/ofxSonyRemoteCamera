@@ -22,12 +22,12 @@ Note that: some apis can not be used for now, becaue some apis seem not to be su
 
 Platform
 ----------
-- Windows (supported. VisualStudio2010) 
+- Windows (supported. VisualStudio2010 openframeworks ver. 0.74) 
 - Linux (not supported. please try and report to me) 
 - Mac (not supported. please try and report to me) 
 
 Link
 ----------
-- [SonyCameraRemoteAPI](http://camera.developer.sony.com/ "Sony Camera Remote API")
-- [SonyCameraRemoteAPI documents](https://camera.developer.sony.com/pages/documents/view/?id=camera_api "Sony Camera Remote API")
+- [Camera Remote Apps Developer Program](http://camera.developer.sony.com/ "Camera Remote Apps Developer Program")
+- [Sony Camera Remote API Documents](https://camera.developer.sony.com/pages/documents/view/?id=camera_api " Camera Remote API Documents")
 - [openFrameworks](http://www.openframeworks.cc/ "openFrameworks")
