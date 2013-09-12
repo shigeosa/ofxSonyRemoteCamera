@@ -9,7 +9,7 @@ e.g. start/stop recording, capture live view, set zoom and so on
 
 Device
 ----------
-- [HDR-AS15 ActionCam](http://camera.developer.sony.com/ "HDR-AS15 ActionCam")
+- [HDR-AS15 ActionCam (supported)](http://camera.developer.sony.com/ "HDR-AS15 ActionCam")
 - NEX cameras will be supported by Sony soon.
 
 How To Use
