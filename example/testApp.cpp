@@ -7,7 +7,7 @@
 
 static const int MSG_LIST_SIZE(7);
 static const unsigned long long WAIT_MSG_INTERVAL(500);
-static const unsigned long long WAIT_MAX_DURAION(5000);
+static const unsigned long long WAIT_TIMEOUT(5000);
 
 //--------------------------------------------------------------
 void testApp::setup(){
@@ -33,7 +33,7 @@ void testApp::setup(){
 		if (timestamp - lastMsgTimestamp > WAIT_MSG_INTERVAL) {
 			std::cout << "wait untill liveview images are updated" << std::endl;
 			lastMsgTimestamp = timestamp;
-		} else if (timestamp > WAIT_MAX_DURAION) {
+		} else if (timestamp > WAIT_TIMEOUT) {
 			std::cout << "connect server error. pleae check your Wi-Fi connection" << std::endl;
 			isSuccessed = false;
 			break;
