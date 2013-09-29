@@ -63,6 +63,11 @@ public:
 		MOVIE_QUALITY_SSLOW,
 		MOVIE_QUALITY_VGA
 	};
+	enum PostViewImageSize
+	{
+		POST_VIEW_IMG_SIZE_ORIGINAL,
+		POST_VIEW_IMG_SIZE_2M
+	};
 	struct CommonHeader
 	{
 		CommonHeader(): payLoadType(0), frameId(0), timestamp(0) {}
@@ -92,7 +97,7 @@ public:
 	ofEvent<ImageSize> imageSizeUpdated;
 
 	//-----------------------------------------------------------------
-	// Liveview (Available)
+	// Liveview
 	//-----------------------------------------------------------------
 	SRCError startLiveView();
 	SRCError stopLiveView();
@@ -122,7 +127,7 @@ public:
 	SRCError awaitTakePicture();
 
 	//-----------------------------------------------------------------
-	// Movie recording (Available)
+	// Movie recording
 	//-----------------------------------------------------------------
 	SRCError startMovieRec();
 	SRCError stopMovieRec();
@@ -144,9 +149,17 @@ public:
 	SRCError getAvailableSelfTimer(std::string& json);
 	SRCError getSelfTimer(int& second);
 	SRCError setSelfTimer(int second);
+	
+	//-----------------------------------------------------------------
+	// Postview image size
+	//-----------------------------------------------------------------
+	SRCError getSupportedPostViewImageSize(std::string& json);
+	SRCError getAvailablePostViewImageSize(std::string& json);
+	SRCError getPostViewImageSize(PostViewImageSize& size);
+	SRCError setPostViewImageSize(PostViewImageSize size);	
 
 	//-----------------------------------------------------------------
-	// Shoot mode (Available)
+	// Shoot mode
 	//-----------------------------------------------------------------
 	SRCError getSupportedShootMode(std::string& json);
 	SRCError getAvailableShootMode(std::string& json);
@@ -154,7 +167,7 @@ public:
 	SRCError setShootMode(ShootMode mode);
 
 	//-----------------------------------------------------------------
-	// Event notification (Available)
+	// Event notification
 	//-----------------------------------------------------------------
 	/*!
 		@params pollingFlag true: Callback when timeout or change point detection, false: Callback immediately
@@ -209,10 +222,13 @@ private:
 	bool updateCommonHeader();
 	bool updatePayloadHeader();
 	bool updatePayloadData();
+	void updateRequest();
 	bool openLiveViewSession(const std::string& host, int port);
 	void closeLiveViewSession();
 
 	std::string httpPost(const std::string& json, const std::string& path);
+	std::string httpPostAsync(const std::string& json, const std::string& path);
+
 	//json	
 	std::string createJson(const std::string& method, const std::vector<picojson::value>& params=std::vector<picojson::value>()) const;
 	picojson::value parse(const std::string& json)  const;
@@ -221,7 +237,14 @@ private:
 	SRCError cvtError(int errorcode) const;
 	//
 	int bytesToInt(BYTE byteData[], int startIndex, int count) const;
-	
+
+	// test
+	struct MyHttpPostRequest
+	{
+		MyHttpPostRequest(const std::string& json, const std::string& path) : json(json), path(path) {};
+		std::string json;
+		std::string path;
+	};
 private:
 
 	std::string mHost;
@@ -240,6 +263,7 @@ private:
 
 	Poco::Net::HTTPClientSession mLiveViewSession;
 	std::string mLiveViewPath;
+	std::string mPostViewPath;
 	Poco::Net::HTTPClientSession mSession;
 	std::string mSessionCameraPath;
 	std::string mSessionGuidePath;
@@ -249,4 +273,9 @@ private:
 
 	CommonHeader mCommonHeader;
 	PayloadHeader mPayloadHeader;
+
+	// test
+	std::list<MyHttpPostRequest> mHttpPostList;
+	std::list<MyHttpPostRequest> mHttpPostListEntry;
+
 };

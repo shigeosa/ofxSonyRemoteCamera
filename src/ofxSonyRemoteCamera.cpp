@@ -184,7 +184,15 @@ void ofxSonyRemoteCamera::getPayloadHeader(PayloadHeader& header)
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::actTakePicture()
 {
 	const std::string json(httpPost(createJson("actTakePicture"), mSessionCameraPath));
+	picojson::array resultArray;
+	if (getJsonResultArray(resultArray, json)) {
+		mPostViewPath = resultArray[0].get<std::string>();
+	}
 	return checkError(json);
+	/*
+	httpPostAsync(createJson("actTakePicture"), mSessionCameraPath);
+	return SRC_OK;
+	*/
 }
 
 ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::awaitTakePicture()
@@ -214,8 +222,13 @@ ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::actZoom(const std::string& di
 	std::vector<picojson::value> params(2);
 	params[0] = static_cast<picojson::value>(static_cast<std::string>(direction));
 	params[1] = static_cast<picojson::value>(static_cast<std::string>(movement));
-	const std::string json(httpPost(createJson("awaitTakePicture", params), mSessionCameraPath));
-	return checkError(json);	
+	
+	const std::string json(httpPost(createJson("actZoom", params), mSessionCameraPath));
+	return checkError(json);
+	/*
+	httpPostAsync(createJson("actZoom", params), mSessionCameraPath);
+	return SRC_OK;
+	*/
 }
 //////////////////////////////////////////////////////////////////////////
 // Self-timer
@@ -250,6 +263,61 @@ ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setSelfTimer(int second)
 	const std::string json(httpPost(createJson("setSelfTimer", params), mSessionCameraPath));
 	return checkError(json);	
 }
+//////////////////////////////////////////////////////////////////////////
+// Postview image size
+//////////////////////////////////////////////////////////////////////////
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getSupportedPostViewImageSize( std::string& json )
+{
+	json = httpPost(createJson("getSupportedPostviewImageSize"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getAvailablePostViewImageSize( std::string& json )
+{
+	json = httpPost(createJson("getAvailablePostviewImageSize"), mSessionCameraPath);
+	return checkError(json);
+}
+
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::getPostViewImageSize(PostViewImageSize& size)
+{
+	const std::string json(httpPost(createJson("getPostviewImageSize"), mSessionCameraPath));
+	SRCError err(checkError(json));
+	if (err != SRC_OK) return err;
+
+	picojson::array resultArray;
+	if (getJsonResultArray(resultArray, json)) {
+		if (resultArray[0].get<std::string>().compare("Original") == 0) {
+			size = POST_VIEW_IMG_SIZE_ORIGINAL;
+			return SRC_OK;
+		} else if (resultArray[0].get<std::string>().compare("2M") == 0) {
+			size = POST_VIEW_IMG_SIZE_2M;
+			return SRC_OK;
+		} else {
+			ofLogError("not implemented yet.");
+		}
+	}
+	return SRC_ERROR_UNKNOWN;	
+}
+ofxSonyRemoteCamera::SRCError ofxSonyRemoteCamera::setPostViewImageSize(PostViewImageSize size)
+{
+
+	std::vector<picojson::value> params(1);
+	switch (size) {
+		case POST_VIEW_IMG_SIZE_ORIGINAL:
+			params[0] = static_cast<picojson::value>(static_cast<std::string>("Original"));
+			break;
+		case POST_VIEW_IMG_SIZE_2M:
+			params[0] = static_cast<picojson::value>(static_cast<std::string>("2M"));
+			break;
+		default:
+			ofLogError("not implemented yet.");
+			break;
+		}
+
+	const std::string json(httpPost(createJson("setShootMode", params), mSessionCameraPath));
+	return checkError(json);
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Shoot mode
 //////////////////////////////////////////////////////////////////////////
@@ -530,6 +598,7 @@ void ofxSonyRemoteCamera::threadedFunction()
 		if (!updateLiveView()) {
 			this->sleep(1);
 		}
+		//updateRequest();
 	}
 }
 
@@ -653,6 +722,20 @@ bool ofxSonyRemoteCamera::updatePayloadData()
 	return true;
 }
 
+void ofxSonyRemoteCamera::updateRequest()
+{
+	lock();
+	mHttpPostList = mHttpPostListEntry;
+	mHttpPostListEntry.clear();
+	unlock();
+	while (mHttpPostList.size()) {
+		const std::string json(httpPost(mHttpPostList.front().json, mHttpPostList.front().path));
+		std::cout << json << std::endl;
+		mHttpPostList.pop_front();
+	}
+	
+}
+
 std::string ofxSonyRemoteCamera::httpPost( const std::string& json, const std::string& path )
 {
 	Poco::Net::HTTPRequest request(Poco::Net::HTTPRequest::HTTP_POST, path, Poco::Net::HTTPMessage::HTTP_1_1);
@@ -669,6 +752,15 @@ std::string ofxSonyRemoteCamera::httpPost( const std::string& json, const std::s
 		return responseStr;
 		// TODO
 	}
+	return "";
+}
+
+std::string ofxSonyRemoteCamera::httpPostAsync( const std::string& json, const std::string& path )
+{
+	MyHttpPostRequest r(json, path);
+	lock();
+	mHttpPostListEntry.push_back(r);
+	unlock();
 	return "";
 }
 
