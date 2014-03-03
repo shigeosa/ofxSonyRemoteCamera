@@ -572,8 +572,9 @@ std::string ofxSonyRemoteCamera::getErrorString(SRCError err) const
 		return "ERROR_ALREADY_RUNNING_POLLING_API";
 	case SRC_ERROR_STILL_CAPTURING_NOT_FINISHED:
 		return "ERROR_STILL_CAPTURING_NOT_FINISHED";
+    default:
+        return "ERROR_UNKNOWN";
 	}
-	return "ERROR_UNKNOWN";
 }
 
 std::string ofxSonyRemoteCamera::getShootModeString(ShootMode mode) const
