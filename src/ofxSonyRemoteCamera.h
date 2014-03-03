@@ -14,6 +14,11 @@
 #include "Poco/Net/HTTPRequest.h"
 #include "Poco/Net/HTTPResponse.h"
 
+#ifndef BYTE
+#include <stdint.h>
+#define BYTE uint8_t
+#endif
+
 class ofxSonyRemoteCamera : public ofThread
 {
 public:

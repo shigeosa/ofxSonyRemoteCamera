@@ -18,8 +18,10 @@ void testApp::setup(){
 
 	mPrevTimestamp = 0;
 
-	mRemoteCam.setup();
+	mRemoteCam.setup("192.168.122.1", 8080); // This combination was tested with NEX-7R.
 	ofAddListener(mRemoteCam.imageSizeUpdated, this, &testApp::imageSizeUpdated);
+
+    mRemoteCam.startRecMode();
 	
 	ofxSonyRemoteCamera::SRCError err(ofxSonyRemoteCamera::SRC_OK);
 	err = mRemoteCam.startLiveView();
@@ -322,8 +324,9 @@ std::string testApp::getAPITypeStr(APIType type)
 	case TYPE_GET_AVAILABLE_VIEW_ANGLE:
 		return "GET_AVAILABLE_VIEW_ANGLE";
 #endif
+    default:
+        return "";
 	}
-	return "";
 }
 
 //--------------------------------------------------------------
@@ -441,6 +444,9 @@ ofxSonyRemoteCamera::SRCError testApp::executeCameraAPI(APIType type, std::strin
 		err = mRemoteCam.getAvailableViewAngle(msg);
 		break;
 #endif
+    default:
+        err = ofxSonyRemoteCamera::SRC_ERROR_UNKNOWN;
+        break;
 	}
 	std::cout << msg << std::endl;
 	return err;
